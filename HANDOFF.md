@@ -61,7 +61,7 @@ A static page that records the sound of a browser tab playing a YouTube video an
 
 ## What passed
 
-`./scripts/check.sh` on 2026-10-13: `BROWSER CHECK PASSED in chromium, firefox, webkit`, `CAPTURE CHECK PASSED in chromium`, `BUILDER CHECK PASSED`. `./scripts/count-tests.sh`: 90 passed, 0 failed, 0 ignored. `scripts/break_tests.py`: 20 of 20 breaks caught.
+`./scripts/check.sh` on 2026-10-13: `BROWSER CHECK PASSED in chromium, firefox, webkit`, `CAPTURE CHECK PASSED in chromium`, `BUILDER CHECK PASSED`. `./scripts/count-tests.sh`: 90 passed, 0 failed, 0 ignored. `scripts/break_tests.py`: 20 of 20 breaks caught. Published 2026-10-13 (build `2d90fecfbff1` from `44153d3`); the browser check against the live address passed in all three engines. The recording check has not been run against the live address, since it serves `dist/` itself; the live build hash matches the one it checked.
 
 ## The next action
 

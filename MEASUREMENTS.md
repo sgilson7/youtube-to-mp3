@@ -13,6 +13,7 @@ The state measured rather than recalled, so later changes can be compared with i
 | WebAssembly size | printed by `./scripts/build.sh` | 404 KB | 2026-10-13 |
 | Breaks caught | `python3 scripts/break_tests.py` | 20 of 20 | 2026-10-13 |
 | Recording check | `python3 tests/browser/capture.py` | a 2 s tone decoded as 2.016 s, 440.5 Hz left, 1000.0 Hz right, peak 0.400 | 2026-10-13 |
+| Live page | `BUILDER_ORIGIN=https://sgilson7.github.io/youtube-to-mp3 python3 tests/browser/check.py` | BROWSER CHECK PASSED in chromium, firefox, webkit; build `2d90fecfbff1` from `44153d3` | 2026-10-13 |
 | Real YouTube, once | a probe outside the repository (`SECOND-ORDER.md` R1.13) | 15.3 s at 192 kbps, stereo, RMS 0.05 to 0.09 | 2026-10-13 |
 
 ## Not measured
