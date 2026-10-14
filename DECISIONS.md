@@ -17,3 +17,7 @@ The agent decided: a static page cannot fetch from YouTube (`SECOND-ORDER.md` R1
 > lets try the creative route fist
 
 The agent decided: build the tab recorder first, as a static page with no off-origin request (`BRIEF.md`). The local app with a link box is not built; it stays open as a second tool the person may ask for. Publishing is not granted: the person wants it released but has not named where (`SECOND-ORDER.md` R1.9).
+
+> i approve crestion of a public git repo and deployment to pages
+
+The agent decided: the grant names no repository, so the agent named it `youtube-to-mp3`, after `pdf-redactor`'s pattern, as `sgilson7/youtube-to-mp3`, published at `https://sgilson7.github.io/youtube-to-mp3/`. Scope: until withdrawn, recorded in `BRIEF.md`'s Autonomy paragraph. The approval of `rusty_mp3` (`SECOND-ORDER.md` R1.3) was not answered separately; publishing ships it, so the agent reads the grant as accepting it for now and leaves the row open for the person to confirm.

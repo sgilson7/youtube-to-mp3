@@ -1,5 +1,7 @@
 # YouTube to MP3
 
+### ▶ [Open the tool](https://sgilson7.github.io/youtube-to-mp3/)
+
 Record the sound of a YouTube video in a browser tab and save it as an MP3. The page records and encodes inside your browser. It has no server, no account and no adverts. The page requests nothing from any other address; the link to a video opens YouTube in a tab of its own.
 
 ## How it works

@@ -58,7 +58,7 @@ YouTube, MP3, tab, bitrate. Entries in `GLOSSARY.md`.
 
 ## Autonomy
 
-The plan is approved in advance. Where this brief is silent, the agent decides, records the decision in `SECOND-ORDER.md`, and continues. The agent may not loosen a Builder requirement or a boundary test, and may not add a server, an account, analytics or any off-origin request. The person asked for the tool to be released online but has not yet named a repository or address, so the agent does not create a repository or publish; it asks at handoff.
+The plan is approved in advance. Where this brief is silent, the agent decides, records the decision in `SECOND-ORDER.md`, and continues. The agent may not loosen a Builder requirement or a boundary test, and may not add a server, an account, analytics or any off-origin request. The person wrote: "i approve crestion of a public git repo and deployment to pages". The agent may create the public repository `sgilson7/youtube-to-mp3` and publish it to GitHub Pages with `./scripts/publish.sh` once `./scripts/check.sh` passes, and may republish after later changes that pass the check, until the person withdraws this.
 
 ## Allowed core dependencies
 

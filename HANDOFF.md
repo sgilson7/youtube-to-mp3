@@ -4,7 +4,7 @@ Stage 9, written by the agent. `C5 Consolidate in your own words`. A fresh sessi
 
 ## What this is
 
-A static page that records the sound of a browser tab playing a YouTube video and saves it as an MP3, encoded inside the page by a Rust core compiled to WebAssembly. It has no server and makes no off-origin request. It works where a browser shares a tab's sound: Chrome and Edge on a computer. It lives in `~/Documents/YoutubeToMp3Converter` and is not published (`SECOND-ORDER.md` R1.9).
+A static page that records the sound of a browser tab playing a YouTube video and saves it as an MP3, encoded inside the page by a Rust core compiled to WebAssembly. It has no server and makes no off-origin request. It works where a browser shares a tab's sound: Chrome and Edge on a computer. Source: `https://github.com/sgilson7/youtube-to-mp3`; page: `https://sgilson7.github.io/youtube-to-mp3/`, published from the `gh-pages` branch by `./scripts/publish.sh`.
 
 ## Rules that hold it up
 
