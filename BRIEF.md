@@ -18,11 +18,17 @@ Offered a page that records a tab's sound, or a local app that takes a link:
 
 > lets try the creative route fist
 
+Told on 2026-10-14 why a page cannot fetch the audio, and offered silent recording, the video inside the page (which breaks this brief's "no off-origin request"), an extension, or the local app:
+
+> add silent recording and video inside the page, and a little progress bar with a time left before its ready
+
 ## The tool
 
 A static web page that turns the sound of a YouTube video into an MP3 file, built and kept entirely inside the reader's browser tab, like the PDF redactor. The reader opens the page, chooses the browser tab playing the video, shares that tab's sound, plays the video, and stops. The page encodes what it heard as an MP3 and offers it as a file to save. There is no server, no upload, no account, no advert and no request off the page's own origin.
 
 The page records rather than downloads, because a page on another origin cannot read YouTube's streams (`SECOND-ORDER.md` R1.1). Recording takes as long as the video plays, and it works where the browser can share a tab's sound: Chrome and Edge on a desktop computer.
+
+With a link, the video can instead play inside the page, in YouTube's embedded player, and the page records its own tab: a bar shows the time left, and recording ends with the video. The player is the tool's one declared off-origin feature (Builder R7): it loads only when the reader presses the button for it. By default the sound is recorded without playing aloud (`suppressLocalAudioPlayback`), so the reader can do other things meanwhile.
 
 For anyone with a desktop browser; aimed at people who would otherwise use an advert-funded converter site.
 
@@ -34,7 +40,10 @@ For anyone with a desktop browser; aimed at people who would otherwise use an ad
 - The title and artist typed in are written into the file's tags, and the file is named from the title.
 - Sharing without the tab's sound gives a message that says to tick the box for the tab's sound, not an empty file.
 - A browser that cannot share a tab's sound is told which browsers can.
-- The browser check passes in Chromium, Firefox and WebKit with no off-origin request.
+- With a link, the video plays inside the page, starts by itself once this tab is shared, shows the time left, and ends the recording when it ends; the file takes the video's title.
+- A video whose owner keeps it off other sites sends the reader back with the other way to record it.
+- No request leaves the page's origin until the reader asks for the video inside the page, and the CSP lets frames come from the player's one origin only.
+- The browser check passes in Chromium, Firefox and WebKit with no off-origin request (it never asks for the player).
 - `./scripts/check.sh` passes.
 
 ## Decisions that stay with the person
@@ -58,7 +67,7 @@ YouTube, MP3, tab, bitrate. Entries in `GLOSSARY.md`.
 
 ## Autonomy
 
-The plan is approved in advance. Where this brief is silent, the agent decides, records the decision in `SECOND-ORDER.md`, and continues. The agent may not loosen a Builder requirement or a boundary test, and may not add a server, an account, analytics or any off-origin request. The person wrote: "i approve crestion of a public git repo and deployment to pages". The agent may create the public repository `sgilson7/youtube-to-mp3` and publish it to GitHub Pages with `./scripts/publish.sh` once `./scripts/check.sh` passes, and may republish after later changes that pass the check, until the person withdraws this.
+The plan is approved in advance. Where this brief is silent, the agent decides, records the decision in `SECOND-ORDER.md`, and continues. The agent may not loosen a Builder requirement or a boundary test, and may not add a server, an account, analytics or any off-origin request other than the video player the person asked for on 2026-10-14 (its fence is `crates/core/tests/player_fence.rs`). The person wrote: "i approve crestion of a public git repo and deployment to pages". The agent may create the public repository `sgilson7/youtube-to-mp3` and publish it to GitHub Pages with `./scripts/publish.sh` once `./scripts/check.sh` passes, and may republish after later changes that pass the check, until the person withdraws this.
 
 ## Allowed core dependencies
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recording check: the built page records a real tab in Chromium.
+"""Recording check: the built page records a real tab in Chromium, both ways.
 
 A person's click on the browser's share picker cannot be scripted, so this
 check starts Chromium with --auto-select-tab-capture-source-by-title, which
@@ -17,6 +17,13 @@ a saved MP3 works, and the file holds the fixture's sound, trimmed. It does
 not show that Chrome or Edge as installed by a reader answer the picker the
 same way, or that a YouTube tab behaves like the fixture; those are a
 person's checks (HANDOFF.md).
+
+The second half records the video inside the page. Chromium starts with
+--auto-accept-this-tab-capture, which answers "share this tab" with yes. The
+player's address is routed to a stand-in (fixtures/player.html) that speaks
+YouTube's widget protocol and plays the same tone, so no request leaves the
+machine: what this shows is that the page follows the protocol as the core
+reads it, not that YouTube still speaks it (a person's check, HANDOFF.md).
 
     python3 tests/browser/capture.py
 """
@@ -38,6 +45,7 @@ DIST = ROOT / "dist"
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures"
 TONE_SECONDS = 2
 TITLE = "Test tone: left/right"
+PLAYER = "https://www.youtube-nocookie.com"
 WANT_NAME = "Test tone leftright.mp3"  # ":" and "/" dropped, worked out by hand
 
 failures = []
@@ -74,11 +82,11 @@ def frequency(samples, rate):
     return rising * rate / len(middle)
 
 
-def read_file(path):
+def read_file(path, title=TITLE):
     data = path.read_bytes()
     check(data[:3] == b"ID3", "the file starts with an ID3 tag")
     size = (data[6] << 21) | (data[7] << 14) | (data[8] << 7) | data[9]
-    check(TITLE.encode("latin-1") in data[: 10 + size], "the tag holds the title as typed")
+    check(title.encode("latin-1") in data[: 10 + size], f"the tag holds the title {title!r}")
     frame = data[10 + size:]
     check(frame[:2] == b"\xff\xfb", "an MPEG-1 Layer III frame follows the tag")
     # Third header byte: bitrate index 1011 (192 kbps), rate index 01 (48 kHz).
@@ -104,6 +112,68 @@ def read_file(path):
     check(abs(fr - 1000) < 5, f"the right channel is 1000 Hz ({fr:.1f})")
     peak = max(abs(s) for s in left) / 32768
     check(0.3 < peak < 0.5, f"the left channel's level is the tone's 0.4 ({peak:.3f})")
+
+
+def record_here(p, tool, out):
+    print("\n[chromium] the video inside the page")
+    fixture = (FIXTURES / "player.html").read_text()
+    seen = {"unrouted": [], "errors": [], "console": []}
+    browser = p.chromium.launch(
+        channel="chromium",
+        ignore_default_args=["--mute-audio"],
+        args=["--auto-accept-this-tab-capture"],
+    )
+    context = browser.new_context(accept_downloads=True)
+
+    def route(r):
+        if r.request.url.startswith(PLAYER + "/embed/"):
+            r.fulfill(status=200, content_type="text/html", body=fixture)
+        elif r.request.url.startswith((tool + "/", "blob:", "data:")):
+            r.continue_()
+        else:
+            seen["unrouted"].append(r.request.url)
+            r.abort()
+
+    context.route("**/*", route)
+    page = context.new_page()
+    page.on("pageerror", lambda e: seen["errors"].append(str(e)))
+    page.on("console", lambda m: seen["console"].append(m.text) if m.type == "error" else None)
+    page.goto(tool + "/index.html")
+    page.wait_for_selector("body[data-ready='true']", state="attached")
+    check(page.locator("#player iframe").count() == 0, "no player is loaded before the reader asks")
+
+    page.locator("#field-link\\.set").fill("https://youtu.be/aqz-KE-bpKQ")
+    page.get_by_role("button", name="Record it here").click()
+    page.wait_for_selector("body[data-screen='recording']", timeout=15000)
+    check(True, "this tab was shared, the player started, and its sound started the recording")
+    src = page.get_attribute("#player iframe", "src")
+    check(src.startswith(PLAYER + "/embed/aqz-KE-bpKQ?enablejsapi=1&origin=http%3A%2F%2F127.0.0.1%3A"), f"the player is the video's embed ({src})")
+    page.wait_for_selector("#progress-reading:has-text('until the MP3 is ready')", timeout=5000)
+    check(True, f"the time left is shown ({page.inner_text('#progress-reading')})")
+    page.wait_for_selector("body[data-screen='done']", timeout=15000)
+    done = page.inner_text("#done")
+    check("Recording stopped when the video ended." in done, "the recording stopped when the video ended")
+    check(page.locator("#player iframe").count() == 0, "the player is gone once the recording ends")
+    check(page.input_value("#field-tag\\.title") == "Fixture tone", "the title is the video's")
+    with page.expect_download() as info:
+        page.get_by_role("button", name="Save the MP3").click()
+    download = info.value
+    check(download.suggested_filename == "Fixture tone.mp3", f"the file is named from the video ({download.suggested_filename})")
+    saved = out / "here.mp3"
+    download.save_as(saved)
+    read_file(saved, "Fixture tone")
+
+    page.get_by_role("button", name="Record another").click()
+    page.locator("#field-link\\.set").fill("https://youtu.be/blockedvid0")
+    page.get_by_role("button", name="Record it here").click()
+    page.wait_for_selector("#message:has-text('does not let it play on other sites')", timeout=15000)
+    check(page.get_attribute("body", "data-screen") == "setup", "a video kept off other sites goes back to the start with the way round")
+    check(page.locator("#player iframe").count() == 0, "and its player is removed")
+
+    check(not seen["unrouted"], f"no request left the machine {seen['unrouted']}")
+    check(not seen["errors"], f"no uncaught page error {seen['errors']}")
+    check(not seen["console"], f"no console error {seen['console']}")
+    browser.close()
 
 
 def main():
@@ -158,6 +228,8 @@ def main():
         check(not seen["errors"], f"no uncaught page error {seen['errors']}")
         check(not seen["console"], f"no console error {seen['console']}")
         browser.close()
+
+        record_here(p, tool, out)
     tool_server.shutdown()
     tone_server.shutdown()
     if failures:

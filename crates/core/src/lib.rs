@@ -14,4 +14,5 @@ pub mod id3;
 pub mod link;
 pub mod page;
 pub mod pcm;
+pub mod player;
 pub mod recorder;

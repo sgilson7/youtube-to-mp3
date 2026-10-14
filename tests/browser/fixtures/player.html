@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Player fixture</title>
+</head>
+<body>
+  <p>A stand-in for YouTube's embedded player, for tests/browser/capture.py. The check serves it at the player's own address, so its messages carry the player's origin. It speaks the part of the widget protocol the page uses: after "listening" it reports ready and the video's length and title; on "playVideo" it plays 440 Hz on the left and 1000 Hz on the right for the video's length, reports the time four times a second, and reports the end. The video id "blockedvid0" answers with error 150 instead, as a video kept off other sites does.</p>
+  <script>
+    // Test fixture, not part of the page: free to hold numbers.
+    const SECONDS = 2;
+    const id = location.pathname.split("/").pop();
+    const tell = (m) => parent.postMessage(JSON.stringify({ ...m, channel: "widget", id: 1 }), "*");
+    const info = (i) => tell({ event: "infoDelivery", info: i });
+    window.addEventListener("message", (e) => {
+      const m = JSON.parse(e.data);
+      if (m.event === "listening") {
+        if (id === "blockedvid0") {
+          tell({ event: "onError", info: 150 });
+          return;
+        }
+        tell({ event: "onReady", info: null });
+        info({ playerState: 5, currentTime: 0, duration: SECONDS, videoData: { title: "Fixture tone", author: "" } });
+      }
+      if (m.event === "command" && m.func === "playVideo") {
+        const ctx = new AudioContext({ sampleRate: 48000 });
+        const merger = ctx.createChannelMerger(2);
+        [[440, 0], [1000, 1]].forEach(([hz, channel]) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.value = hz;
+          gain.gain.value = 0.4;
+          osc.connect(gain).connect(merger, 0, channel);
+          osc.start(ctx.currentTime + 0.1);
+          osc.stop(ctx.currentTime + 0.1 + SECONDS);
+        });
+        merger.connect(ctx.destination);
+        ctx.resume();
+        tell({ event: "onStateChange", info: 1 });
+        const start = performance.now();
+        const timer = setInterval(() => {
+          const t = (performance.now() - start) / 1000;
+          if (t >= SECONDS + 0.4) {
+            clearInterval(timer);
+            info({ playerState: 0, currentTime: SECONDS });
+            tell({ event: "onStateChange", info: 0 });
+            return;
+          }
+          info({ currentTime: Math.min(t, SECONDS) });
+        }, 250);
+      }
+    });
+  </script>
+</body>
+</html>

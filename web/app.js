@@ -7,6 +7,10 @@
 // After drawing, the page carries out the effects the core names: open the
 // tab picker, close it, save the file. Sound from the shared tab goes to the
 // core through `feed`, block by block, as bytes. (After Peter's Mandible.)
+//
+// For a video inside the page, the core names a player frame and the
+// messages to post to it; every message the window receives goes back to the
+// core as text with its origin, and the core decides what it means.
 import init, { Tool } from "./pkg/tool_shim.js";
 
 const el = (id) => document.getElementById(id);
@@ -93,7 +97,7 @@ function panel(p, kept) {
     a.rel = "noopener noreferrer";
     box.append(a);
   }
-  if (p.meter) box.append(meter(p.meter));
+  (p.meters || []).forEach((m) => box.append(meter(m)));
   if (p.actions) {
     const row = make("div");
     row.className = "actions";
@@ -137,6 +141,27 @@ function drawPanels(panels) {
   document.querySelectorAll("#panels h2, #panels button").forEach(mark);
 }
 
+// The frame is drawn only when the core's description of it changes, because
+// moving or rebuilding a frame reloads the video.
+function drawPlayer(p) {
+  const text = JSON.stringify(p);
+  if (drawn.player === text) return;
+  drawn.player = text;
+  const box = el("player");
+  box.replaceChildren();
+  if (!p) return;
+  const frame = make("iframe");
+  frame.src = p.src;
+  frame.title = p.title;
+  frame.allow = "autoplay; encrypted-media";
+  frame.addEventListener("load", () => send("player.loaded", ""));
+  box.append(frame);
+}
+
+function post(message) {
+  el("player").firstChild.contentWindow.postMessage(message, ui.player.origin);
+}
+
 function draw(result) {
   if (result.error) {
     el("message").textContent = result.error;
@@ -145,10 +170,12 @@ function draw(result) {
   ui = result.ok;
   document.title = ui.title;
   el("title").textContent = ui.title;
+  drawPlayer(ui.player);
   drawPanels(ui.panels);
   el("message").textContent = ui.message;
   document.body.dataset.screen = ui.screen;
   ui.effects.forEach((name) => effects[name]());
+  ui.posts.forEach(post);
   const follow = ui.follow;
   if (follow) setTimeout(() => send(follow, ""), options.paint_ms);
 }
@@ -158,8 +185,12 @@ async function open() {
   const context = new AudioContext(options.context);
   const current = { context, stream: null, node: null };
   capture = current;
+  const display = {
+    ...options.display[ui.capture.surface],
+    audio: { ...options.audio, suppressLocalAudioPlayback: ui.capture.silent },
+  };
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia(options.display);
+    const stream = await navigator.mediaDevices.getDisplayMedia(display);
     current.stream = stream;
     const tracks = stream.getAudioTracks();
     if (tracks.length) {
@@ -232,9 +263,11 @@ async function main() {
     display: Boolean(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
     worklet: "AudioWorkletNode" in window,
     chromium: "userAgentData" in navigator,
+    origin: location.origin,
   };
   tool = new Tool(strings, glossary, JSON.stringify(abilities));
   draw(JSON.parse(tool.ui()));
+  window.addEventListener("message", (e) => send("player.message", JSON.stringify({ origin: e.origin, data: String(e.data) })));
   requestAnimationFrame(tick);
   document.body.dataset.ready = "true";
 }

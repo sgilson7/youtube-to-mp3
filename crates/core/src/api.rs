@@ -16,6 +16,13 @@
 //! The page carries out what the core asks for by name in `Ui::effects`
 //! (open the tab picker, close it, save the file) and reports back through
 //! `act`. It decides none of them.
+//!
+//! A recording comes from one of two places. With a link, the video can play
+//! inside this page, in YouTube's embedded player, and the page shares its own
+//! tab ("here"); the player reports its position, so the screen shows the time
+//! left and the recording ends with the video. Without a link, or for a video
+//! whose owner keeps it off other sites, the reader shares the tab where the
+//! video plays ("tab").
 
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +31,7 @@ use crate::glossary;
 use crate::id3;
 use crate::link::{self, LinkError};
 use crate::page::{self, fill, Strings};
+use crate::player::{self, Player};
 use crate::recorder::{self, Fed, Recorder, Stop};
 
 fn ok<T: Serialize>(value: &T) -> String {
@@ -94,8 +102,8 @@ pub struct Panel {
     pub fields: Vec<Field>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link: Option<Link>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub meter: Option<Meter>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub meters: Vec<Meter>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub actions: Vec<Action>,
 }
@@ -105,6 +113,25 @@ pub struct Panel {
 pub struct Hint {
     pub term: String,
     pub definition: String,
+}
+
+/// How the page should open the capture: which surface the browser offers
+/// first, and whether the shared sound also plays through the speakers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Capture {
+    /// `here` (this tab, with the video inside it) or `tab` (another tab).
+    pub surface: String,
+    /// Recorded without being played aloud (`suppressLocalAudioPlayback`).
+    pub silent: bool,
+}
+
+/// The embedded player the page shows: its address, the origin its messages
+/// come from and go to, and a name for the frame.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PlayerView {
+    pub src: String,
+    pub origin: String,
+    pub title: String,
 }
 
 /// Everything the page draws, and what it should do after drawing.
@@ -125,6 +152,12 @@ pub struct Ui {
     pub live: bool,
     /// The name to save the file under.
     pub file_name: String,
+    /// How `capture.open` should ask the browser.
+    pub capture: Capture,
+    /// The embedded player, while a recording here is under way.
+    pub player: Option<PlayerView>,
+    /// Messages to send to the player after drawing, in order, once.
+    pub posts: Vec<String>,
 }
 
 /// One reading for `live`: text for a line, or a value for a meter.
@@ -137,7 +170,7 @@ pub struct Reading {
 }
 
 /// What the page can do, reported once at start.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 pub struct Abilities {
     /// The browser offers `getDisplayMedia`.
     pub display: bool,
@@ -145,6 +178,9 @@ pub struct Abilities {
     pub worklet: bool,
     /// The browser is Chromium-based (it offers `navigator.userAgentData`).
     pub chromium: bool,
+    /// The page's own origin, which the player must be told.
+    #[serde(default)]
+    pub origin: String,
 }
 
 /// What the page reports when sharing starts.
@@ -179,6 +215,19 @@ impl Screen {
     }
 }
 
+/// Why a recording ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Why {
+    /// The reader pressed the stop button.
+    Pressed,
+    /// The recorder stopped itself: silence or the limit.
+    Rule(Stop),
+    /// The reader stopped sharing from the browser's own controls.
+    Unshared,
+    /// The video inside the page reached its end.
+    VideoEnded,
+}
+
 /// A finished recording.
 struct Made {
     mp3: Vec<u8>,
@@ -197,9 +246,15 @@ pub struct Tool {
     link: String,
     bitrate: u32,
     stop_on_silence: bool,
+    silent: bool,
     message: String,
     effects: Vec<String>,
     follow: String,
+    /// Recording the video inside this page, not another tab.
+    here: bool,
+    player: Option<Player>,
+    posts: Vec<String>,
+    play_sent: bool,
     recorder: Option<Recorder>,
     made: Option<Made>,
     title: String,
@@ -257,9 +312,14 @@ impl Tool {
             link: String::new(),
             bitrate: recorder::DEFAULT_BITRATE,
             stop_on_silence: true,
+            silent: true,
             message: String::new(),
             effects: Vec::new(),
             follow: String::new(),
+            here: false,
+            player: None,
+            posts: Vec::new(),
+            play_sent: false,
             recorder: None,
             made: None,
             title: String::new(),
@@ -268,11 +328,19 @@ impl Tool {
     }
 
     /// A string with the names of the buttons it mentions filled in.
+    /// `{start}` is the button that began this recording.
     fn say(&self, template: &str) -> String {
+        let start = if self.here {
+            &self.strings.here
+        } else {
+            &self.strings.choose
+        };
         fill(
             template,
             &[
                 ("choose", self.strings.choose.clone()),
+                ("here", self.strings.here.clone()),
+                ("start", start.clone()),
                 ("stop", self.strings.stop.clone()),
             ],
         )
@@ -317,9 +385,16 @@ impl Tool {
             }],
             ..Panel::default()
         };
+        let mut linked = false;
         if !self.link.trim().is_empty() {
             match link::video_id(&self.link) {
                 Ok(id) => {
+                    linked = true;
+                    video.actions.push(Action {
+                        enabled: self.can_share(),
+                        primary: true,
+                        ..button("player.choose", "", &s.here)
+                    });
                     video.link = Some(Link {
                         href: link::watch_address(&id),
                         label: s.link_open.clone(),
@@ -350,6 +425,10 @@ impl Tool {
             pressed: Some(self.stop_on_silence),
             ..button("silence.toggle", "", &fill(&s.silence_option, &kbps_default))
         });
+        options.push(Action {
+            pressed: Some(self.silent),
+            ..button("silent.toggle", "", &s.silent_option)
+        });
         panels.push(Panel {
             id: "settings".into(),
             heading: s.bitrate_heading.clone(),
@@ -362,7 +441,7 @@ impl Tool {
             id: "start".into(),
             actions: vec![Action {
                 enabled: self.can_share(),
-                primary: true,
+                primary: !linked,
                 ..button("capture.choose", "", &s.choose)
             }],
             ..Panel::default()
@@ -386,8 +465,16 @@ impl Tool {
             Screen::Setup => self.setup_panels(),
             Screen::Asking => vec![Panel {
                 id: "asking".into(),
-                heading: s.asking_heading.clone(),
-                lines: vec![line(s.asking_text.clone())],
+                heading: if self.here {
+                    s.asking_here_heading.clone()
+                } else {
+                    s.asking_heading.clone()
+                },
+                lines: vec![line(if self.here {
+                    s.asking_here_text.clone()
+                } else {
+                    s.asking_text.clone()
+                })],
                 ..Panel::default()
             }],
             Screen::Waiting | Screen::Recording => {
@@ -395,13 +482,19 @@ impl Tool {
                 let waiting = self.screen == Screen::Waiting;
                 let mut lines = vec![];
                 if waiting {
-                    lines.push(line(s.waiting_text.clone()));
+                    lines.push(line(if self.here {
+                        s.waiting_here_text.clone()
+                    } else {
+                        s.waiting_text.clone()
+                    }));
                 } else {
                     lines.push(Line {
                         id: "time".into(),
                         text: fill(&s.recording_time, &[("time", format::clock(frames, rate))]),
                     });
-                    let note = if self.stop_on_silence {
+                    let note = if self.here {
+                        s.recording_here.clone()
+                    } else if self.stop_on_silence {
                         fill(&s.recording_auto, &[("seconds", seconds)])
                     } else {
                         self.say(&s.recording_manual)
@@ -426,11 +519,7 @@ impl Tool {
                         s.recording_heading.clone()
                     },
                     lines,
-                    meter: Some(Meter {
-                        id: "level".into(),
-                        label: s.level_label.clone(),
-                        max: 100,
-                    }),
+                    meters: self.meters(),
                     actions,
                     ..Panel::default()
                 }]
@@ -498,6 +587,35 @@ impl Tool {
         }
     }
 
+    /// The bars on the recording screen: the sound level, and, for a video
+    /// inside the page, how much of it has played.
+    fn meters(&self) -> Vec<Meter> {
+        let mut meters = vec![Meter {
+            id: "level".into(),
+            label: self.strings.level_label.clone(),
+            max: 100,
+        }];
+        if self.here {
+            meters.push(Meter {
+                id: "progress".into(),
+                label: self.strings.progress_label.clone(),
+                max: 1000,
+            });
+        }
+        meters
+    }
+
+    /// The player for the page to show. There is one only while a recording
+    /// here is being set up or under way: `stop` and `back_to_setup` drop it.
+    fn player_view(&self) -> Option<PlayerView> {
+        let p = self.player.as_ref()?;
+        Some(PlayerView {
+            src: player::embed_address(&p.id, &self.abilities.origin),
+            origin: player::ORIGIN.into(),
+            title: self.strings.player_title.clone(),
+        })
+    }
+
     /// The screen as the page should draw it. Effects and the follow-up
     /// action are handed over once: the next `ui` has none until another
     /// action asks for them.
@@ -512,37 +630,45 @@ impl Tool {
             follow: std::mem::take(&mut self.follow),
             live: matches!(self.screen, Screen::Waiting | Screen::Recording),
             file_name: format::file_name(&self.title, &self.strings.default_name),
+            capture: Capture {
+                surface: if self.here { "here" } else { "tab" }.into(),
+                silent: self.silent,
+            },
+            player: self.player_view(),
+            posts: std::mem::take(&mut self.posts),
         }
     }
 
     fn back_to_setup(&mut self, message: String) {
         self.screen = Screen::Setup;
         self.recorder = None;
+        self.player = None;
         self.message = message;
         self.effects.push("capture.close".into());
     }
 
-    fn stopped_text(&self, reason: Option<Stop>, ended: bool) -> Option<String> {
+    fn stopped_text(&self, why: Why) -> Option<String> {
         let s = &self.strings;
-        match (reason, ended) {
-            (Some(Stop::Silence), _) => Some(fill(
+        match why {
+            Why::Rule(Stop::Silence) => Some(fill(
                 &s.stopped_silence,
                 &[("seconds", recorder::SILENCE_SECONDS.to_string())],
             )),
-            (Some(Stop::Limit), _) => Some(fill(
+            Why::Rule(Stop::Limit) => Some(fill(
                 &s.stopped_limit,
                 &[("hours", recorder::LIMIT_HOURS.to_string())],
             )),
-            (None, true) => Some(s.stopped_sharing.clone()),
-            (None, false) => None,
+            Why::Unshared => Some(s.stopped_sharing.clone()),
+            Why::VideoEnded => Some(s.stopped_ended.clone()),
+            Why::Pressed => None,
         }
     }
 
     /// Stops recording: with sound, on to encoding; without, back to setup.
-    fn stop(&mut self, reason: Option<Stop>, ended: bool) {
+    fn stop(&mut self, why: Why) {
         let started = self.recorder.as_ref().is_some_and(|r| r.started());
         if !started {
-            let message = if ended {
+            let message = if why == Why::Unshared {
                 self.say(&self.strings.ended_early)
             } else {
                 self.say(&self.strings.no_sound)
@@ -550,12 +676,19 @@ impl Tool {
             self.back_to_setup(message);
             return;
         }
+        // The video's own title is the file's title unless the reader types
+        // another.
+        if let Some(p) = self.player.take() {
+            if self.title.is_empty() {
+                self.title = p.title;
+            }
+        }
         self.made = Some(Made {
             mp3: Vec::new(),
             frames: 0,
             rate: 0,
             bitrate: self.bitrate,
-            stopped: self.stopped_text(reason, ended),
+            stopped: self.stopped_text(why),
         });
         self.screen = Screen::Encoding;
         self.effects.push("capture.close".into());
@@ -617,15 +750,51 @@ impl Tool {
                 on(&[Screen::Setup])?;
                 self.stop_on_silence = !self.stop_on_silence;
             }
+            "silent.toggle" => {
+                on(&[Screen::Setup])?;
+                self.silent = !self.silent;
+            }
             "capture.choose" => {
                 on(&[Screen::Setup])?;
                 if !self.can_share() {
                     return Err(self.strings.browser_cannot.clone());
                 }
                 self.message.clear();
+                self.here = false;
+                self.player = None;
                 self.screen = Screen::Asking;
                 self.effects.push("capture.open".into());
             }
+            "player.choose" => {
+                on(&[Screen::Setup])?;
+                if !self.can_share() {
+                    return Err(self.strings.browser_cannot.clone());
+                }
+                let id = link::video_id(&self.link).map_err(|e| match e {
+                    LinkError::NotYouTube => self.strings.link_not_youtube.clone(),
+                    LinkError::NoVideo => self.strings.link_no_video.clone(),
+                })?;
+                self.message.clear();
+                self.here = true;
+                self.player = Some(Player::new(&id));
+                self.play_sent = false;
+                self.screen = Screen::Asking;
+                // The frame and the share request start together, inside the
+                // reader's click, which the browser requires for both.
+                self.effects.push("capture.open".into());
+            }
+            "player.loaded" => {
+                // The frame has loaded: ask it to report, and to say when it
+                // changes state or cannot play.
+                if self.player_view().is_some() {
+                    self.posts = vec![
+                        player::listening(),
+                        player::command("addEventListener", &["onStateChange"]),
+                        player::command("addEventListener", &["onError"]),
+                    ];
+                }
+            }
+            "player.message" => self.heard_from_player(value)?,
             "capture.started" => {
                 on(&[Screen::Asking])?;
                 let shared: Shared = serde_json::from_str(value)
@@ -634,10 +803,14 @@ impl Tool {
                     self.back_to_setup(self.say(&self.strings.no_audio));
                     return Ok(());
                 }
-                match Recorder::new(shared.rate, self.bitrate, self.stop_on_silence) {
+                // A video inside the page reports its own end, so silence
+                // within it does not stop the recording.
+                let on_silence = self.stop_on_silence && !self.here;
+                match Recorder::new(shared.rate, self.bitrate, on_silence) {
                     Some(r) => {
                         self.recorder = Some(r);
                         self.screen = Screen::Waiting;
+                        self.play_when_ready();
                     }
                     None => {
                         let message = fill(&self.strings.bad_rate, &[("rate", shared.rate.to_string())]);
@@ -659,7 +832,7 @@ impl Tool {
                 // The reader pressed the browser's own button to stop sharing.
                 // Any other screen has already let the capture go.
                 if matches!(self.screen, Screen::Waiting | Screen::Recording) {
-                    self.stop(None, true);
+                    self.stop(Why::Unshared);
                 }
             }
             "record.cancel" => {
@@ -668,13 +841,13 @@ impl Tool {
             }
             "record.stop" => {
                 on(&[Screen::Waiting, Screen::Recording])?;
-                let reason = match value {
-                    "" => None,
-                    "silence" => Some(Stop::Silence),
-                    "limit" => Some(Stop::Limit),
+                let why = match value {
+                    "" => Why::Pressed,
+                    "silence" => Why::Rule(Stop::Silence),
+                    "limit" => Why::Rule(Stop::Limit),
                     other => return Err(format!("There is no reason to stop called \"{other}\".")),
                 };
-                self.stop(reason, false);
+                self.stop(why);
             }
             "encode.finish" => self.finish()?,
             // Changes nothing; the page sends it to draw the screen again.
@@ -694,6 +867,7 @@ impl Tool {
             "again" => {
                 on(&[Screen::Done])?;
                 self.screen = Screen::Setup;
+                self.here = false;
                 self.made = None;
                 self.title.clear();
                 self.artist.clear();
@@ -701,6 +875,55 @@ impl Tool {
             }
             other => return Err(format!("Unknown action \"{other}\".")),
         }
+        Ok(())
+    }
+
+    /// Starts the video once both the player and the recording are ready, so
+    /// the start of the sound is not lost.
+    fn play_when_ready(&mut self) {
+        let ready = self.player.as_ref().is_some_and(|p| p.ready);
+        if ready && self.screen == Screen::Waiting && !self.play_sent {
+            self.play_sent = true;
+            self.posts.push(player::command("playVideo", &[]));
+        }
+    }
+
+    /// A message the page received from a frame. Anything that is not the
+    /// player's own report, or that arrives with no player showing, changes
+    /// nothing.
+    fn heard_from_player(&mut self, value: &str) -> Result<(), String> {
+        #[derive(Deserialize)]
+        struct Received {
+            origin: String,
+            data: String,
+        }
+        let received: Received = serde_json::from_str(value)
+            .map_err(|e| format!("The player's message could not be read: {e}"))?;
+        if self.player_view().is_none() {
+            return Ok(());
+        }
+        let Some(report) = player::read(&received.origin, &received.data) else {
+            return Ok(());
+        };
+        if let Some(code) = report.error {
+            let template = if player::not_embeddable(code) {
+                &self.strings.player_blocked
+            } else {
+                &self.strings.player_failed
+            };
+            let message = fill(&self.say(template), &[("code", code.to_string())]);
+            self.back_to_setup(message);
+            return Ok(());
+        }
+        let Some(p) = self.player.as_mut() else {
+            return Ok(());
+        };
+        p.apply(&report);
+        if report.state == Some(player::ENDED) && matches!(self.screen, Screen::Waiting | Screen::Recording) {
+            self.stop(Why::VideoEnded);
+            return Ok(());
+        }
+        self.play_when_ready();
         Ok(())
     }
 
@@ -743,7 +966,7 @@ impl Tool {
             return Vec::new();
         };
         let level = r.take_level();
-        vec![
+        let mut readings = vec![
             Reading {
                 id: "time".into(),
                 text: fill(
@@ -757,7 +980,24 @@ impl Tool {
                 text: fill(&s.level_text, &[("percent", level.to_string())]),
                 value: Some(level),
             },
-        ]
+        ];
+        if let Some(p) = self.player.as_ref().filter(|_| self.here) {
+            readings.push(Reading {
+                id: "progress".into(),
+                text: p
+                    .left_ms()
+                    // Rounded up, so the bar reads 0:00 only at the end.
+                    .map(|left| {
+                        fill(
+                            &s.progress_text,
+                            &[("left", format::clock(left.div_ceil(1000), 1))],
+                        )
+                    })
+                    .unwrap_or_default(),
+                value: Some(p.played_per_mille()),
+            });
+        }
+        readings
     }
 
     /// The length of `file()`, without building it.
@@ -886,7 +1126,7 @@ mod tests {
             out.extend(p.fields.iter().map(|f| f.label.clone()));
             out.extend(p.actions.iter().map(|a| a.label.clone()));
             out.extend(p.link.iter().map(|l| l.label.clone()));
-            out.extend(p.meter.iter().map(|m| m.label.clone()));
+            out.extend(p.meters.iter().map(|m| m.label.clone()));
         }
         out.extend(ui.hints.iter().map(|h| h.definition.clone()));
         out
@@ -942,12 +1182,8 @@ mod tests {
     fn the_steps_name_the_buttons_they_mean() {
         let ui = tool().ui();
         let steps = &panel(&ui, "steps").steps;
-        assert!(steps[1].starts_with("Press Choose the tab. "), "{}", steps[1]);
-        assert!(
-            steps[3].starts_with("Press Stop and make the MP3 "),
-            "{}",
-            steps[3]
-        );
+        assert!(steps[0].contains(" press Record it here. "), "{}", steps[0]);
+        assert!(steps[3].contains(" press Choose the tab, "), "{}", steps[3]);
     }
 
     #[test]
@@ -1360,6 +1596,306 @@ mod tests {
             "{}",
             silence.definition
         );
+    }
+
+    const HERE: &str =
+        r#"{"display": true, "worklet": true, "chromium": true, "origin": "https://sgilson7.github.io"}"#;
+    const PLAYER: &str = "https://www.youtube-nocookie.com";
+
+    /// The page's report of a message from a frame.
+    fn heard(origin: &str, data: &str) -> String {
+        serde_json::json!({ "origin": origin, "data": data }).to_string()
+    }
+
+    /// A tool recording the video inside the page, shared and started.
+    fn here() -> Tool {
+        let mut t = Tool::start(STRINGS, GLOSSARY, HERE).unwrap();
+        t.act("link.set", "https://youtu.be/aqz-KE-bpKQ").unwrap();
+        t.act("player.choose", "").unwrap();
+        t.act("player.loaded", "").unwrap();
+        t.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"onReady","info":null}"#),
+        )
+        .unwrap();
+        t.act("capture.started", r#"{"tracks": 1, "rate": 48000}"#)
+            .unwrap();
+        t.ui();
+        t
+    }
+
+    #[test]
+    fn a_link_offers_recording_here_first() {
+        let mut t = tool();
+        assert!(
+            action(&t.ui(), "capture.choose", "").primary,
+            "no link: the tab picker leads"
+        );
+        t.act("link.set", "https://youtu.be/aqz-KE-bpKQ").unwrap();
+        let ui = t.ui();
+        let here = action(&ui, "player.choose", "");
+        assert!(here.primary && here.enabled);
+        assert_eq!(here.label, "Record it here");
+        assert!(!action(&ui, "capture.choose", "").primary);
+        assert!(ui.player.is_none(), "the player loads only when the reader asks");
+        t.act("link.set", "https://vimeo.com/1").unwrap();
+        assert!(panel(&t.ui(), "video").actions.is_empty());
+        assert_eq!(t.act("player.choose", ""), Err(strings().link_not_youtube));
+    }
+
+    #[test]
+    fn recording_here_shows_the_player_and_shares_this_tab() {
+        let mut t = Tool::start(STRINGS, GLOSSARY, HERE).unwrap();
+        t.act("link.set", "https://www.youtube.com/watch?v=aqz-KE-bpKQ")
+            .unwrap();
+        t.act("player.choose", "").unwrap();
+        let ui = t.ui();
+        assert_eq!(ui.screen, "asking");
+        assert_eq!(ui.effects, vec!["capture.open"]);
+        assert_eq!(ui.capture.surface, "here");
+        assert!(ui.capture.silent);
+        let p = ui.player.unwrap();
+        assert_eq!(
+            p.src,
+            "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?enablejsapi=1&origin=https%3A%2F%2Fsgilson7.github.io"
+        );
+        assert_eq!(p.origin, PLAYER);
+        assert_eq!(panel(&t.ui(), "asking").heading, "Share this tab");
+    }
+
+    #[test]
+    fn the_player_is_asked_to_report_then_to_play_once_both_are_ready() {
+        let mut t = Tool::start(STRINGS, GLOSSARY, HERE).unwrap();
+        t.act("link.set", "https://youtu.be/aqz-KE-bpKQ").unwrap();
+        t.act("player.choose", "").unwrap();
+        t.ui();
+        t.act("player.loaded", "").unwrap();
+        assert_eq!(
+            t.ui().posts,
+            vec![
+                r#"{"channel":"widget","event":"listening","id":1}"#,
+                r#"{"args":["onStateChange"],"channel":"widget","event":"command","func":"addEventListener","id":1}"#,
+                r#"{"args":["onError"],"channel":"widget","event":"command","func":"addEventListener","id":1}"#,
+            ]
+        );
+        assert!(t.ui().posts.is_empty(), "posts are handed over once");
+        let play = r#"{"args":[],"channel":"widget","event":"command","func":"playVideo","id":1}"#;
+        t.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"onReady","info":null}"#),
+        )
+        .unwrap();
+        assert!(t.ui().posts.is_empty(), "not before the tab is shared");
+        t.act("capture.started", r#"{"tracks": 1, "rate": 48000}"#)
+            .unwrap();
+        assert_eq!(t.ui().posts, vec![play]);
+        t.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"onReady","info":null}"#),
+        )
+        .unwrap();
+        assert!(t.ui().posts.is_empty(), "play is sent once");
+
+        // The other order: shared first, then the player answers.
+        let mut u = Tool::start(STRINGS, GLOSSARY, HERE).unwrap();
+        u.act("link.set", "https://youtu.be/aqz-KE-bpKQ").unwrap();
+        u.act("player.choose", "").unwrap();
+        u.act("capture.started", r#"{"tracks": 1, "rate": 48000}"#)
+            .unwrap();
+        assert!(u.ui().posts.is_empty());
+        u.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"infoDelivery","info":{"playerState":5}}"#),
+        )
+        .unwrap();
+        assert_eq!(u.ui().posts, vec![play]);
+    }
+
+    #[test]
+    fn the_time_left_comes_from_the_player() {
+        let mut t = here();
+        feed(&mut t, LOUD, 1);
+        t.act(
+            "player.message",
+            &heard(
+                PLAYER,
+                r#"{"event":"infoDelivery","info":{"playerState":1,"currentTime":3.884592,"duration":635}}"#,
+            ),
+        )
+        .unwrap();
+        let ui = t.ui();
+        assert_eq!(
+            panel(&ui, "recording")
+                .meters
+                .iter()
+                .map(|m| m.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["level", "progress"]
+        );
+        let live = t.live();
+        let progress = live.iter().find(|r| r.id == "progress").unwrap();
+        // 635 - 3.884 = 631.116 s, rounded up to 632 s = 10:32; 3884 of
+        // 635000 is 6 thousandths.
+        assert_eq!(progress.text, "10:32 until the MP3 is ready");
+        assert_eq!(progress.value, Some(6));
+        assert_eq!(panel(&ui, "recording").lines[1].text, strings().recording_here);
+    }
+
+    #[test]
+    fn a_recording_from_another_tab_has_no_time_left() {
+        let mut t = recording();
+        assert!(t.live().iter().all(|r| r.id != "progress"));
+        assert_eq!(panel(&t.ui(), "recording").meters.len(), 1);
+    }
+
+    #[test]
+    fn the_video_s_end_stops_the_recording_and_names_the_file() {
+        let mut t = here();
+        t.act(
+            "player.message",
+            &heard(
+                PLAYER,
+                r#"{"event":"infoDelivery","info":{"videoData":{"title":" Big Buck Bunny "}}}"#,
+            ),
+        )
+        .unwrap();
+        feed(&mut t, LOUD, 375);
+        t.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"onStateChange","info":0}"#),
+        )
+        .unwrap();
+        let ui = t.ui();
+        assert_eq!(ui.screen, "encoding");
+        assert_eq!(ui.effects, vec!["capture.close"]);
+        assert_eq!(ui.follow, "encode.finish");
+        assert!(ui.player.is_none(), "the player goes when recording ends");
+        t.act("encode.finish", "").unwrap();
+        let ui = t.ui();
+        assert_eq!(
+            panel(&ui, "done").lines[1].text,
+            "Recording stopped when the video ended."
+        );
+        assert_eq!(panel(&ui, "done").fields[0].value, "Big Buck Bunny");
+        assert_eq!(ui.file_name, "Big Buck Bunny.mp3");
+    }
+
+    #[test]
+    fn a_typed_title_is_kept_over_the_video_s() {
+        let mut t = here();
+        t.act(
+            "player.message",
+            &heard(
+                PLAYER,
+                r#"{"event":"infoDelivery","info":{"videoData":{"title":"Theirs"}}}"#,
+            ),
+        )
+        .unwrap();
+        feed(&mut t, LOUD, 10);
+        t.act("record.stop", "").unwrap();
+        t.act("encode.finish", "").unwrap();
+        t.act("tag.title", "Mine").unwrap();
+        t.act("again", "").unwrap();
+        assert_eq!(
+            t.ui().file_name,
+            "recording.mp3",
+            "record another starts with no title"
+        );
+    }
+
+    #[test]
+    fn silence_inside_a_video_here_does_not_stop_the_recording() {
+        let mut t = here();
+        feed(&mut t, LOUD, 1);
+        // Far past the three seconds that stop a recording from another tab.
+        assert_eq!(feed(&mut t, QUIET, 2000), "");
+        assert_eq!(t.ui().screen, "recording");
+    }
+
+    #[test]
+    fn a_video_kept_off_other_sites_goes_back_with_the_way_round() {
+        let mut t = here();
+        t.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"onError","info":150}"#),
+        )
+        .unwrap();
+        let ui = t.ui();
+        assert_eq!(ui.screen, "setup");
+        assert_eq!(ui.effects, vec!["capture.close"]);
+        assert!(ui.player.is_none());
+        assert_eq!(
+            ui.message,
+            "The video's owner does not let it play on other sites. Open it in a new tab and press Choose the tab instead."
+        );
+        let mut u = here();
+        u.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"onError","info":5}"#),
+        )
+        .unwrap();
+        assert_eq!(
+            u.ui().message,
+            "The video could not play here (YouTube error 5). Open it in a new tab and press Choose the tab instead."
+        );
+    }
+
+    #[test]
+    fn a_message_from_elsewhere_changes_nothing() {
+        let mut t = here();
+        let before = t.ui();
+        for (origin, data) in [
+            ("https://evil.example", r#"{"event":"onStateChange","info":0}"#),
+            (PLAYER, "[object Object]"),
+            (PLAYER, r#"{"event":"unknown"}"#),
+        ] {
+            t.act("player.message", &heard(origin, data)).unwrap();
+            assert_eq!(t.ui(), before, "{origin} {data}");
+        }
+        assert!(t.act("player.message", "not json").is_err());
+        // With no player showing, even the player's own message is ignored.
+        let mut idle = tool();
+        idle.act(
+            "player.message",
+            &heard(PLAYER, r#"{"event":"onError","info":150}"#),
+        )
+        .unwrap();
+        assert_eq!(idle.ui().message, "");
+        idle.act("player.loaded", "").unwrap();
+        assert!(idle.ui().posts.is_empty());
+    }
+
+    #[test]
+    fn a_cancelled_share_names_the_button_that_started_it() {
+        let mut t = Tool::start(STRINGS, GLOSSARY, HERE).unwrap();
+        t.act("link.set", "https://youtu.be/aqz-KE-bpKQ").unwrap();
+        t.act("player.choose", "").unwrap();
+        t.act("capture.failed", "NotAllowedError").unwrap();
+        let ui = t.ui();
+        assert_eq!(
+            ui.message,
+            "No tab was shared. Press Record it here to try again."
+        );
+        assert!(ui.player.is_none());
+        t.act("capture.choose", "").unwrap();
+        t.act("capture.failed", "NotAllowedError").unwrap();
+        assert_eq!(
+            t.ui().message,
+            "No tab was shared. Press Choose the tab to try again."
+        );
+    }
+
+    #[test]
+    fn recording_silently_is_on_at_first_and_can_be_turned_off() {
+        let mut t = tool();
+        let ui = t.ui();
+        assert_eq!(action(&ui, "silent.toggle", "").pressed, Some(true));
+        assert_eq!(action(&ui, "silent.toggle", "").label, "Record silently");
+        assert!(ui.capture.silent);
+        assert_eq!(ui.capture.surface, "tab");
+        t.act("silent.toggle", "").unwrap();
+        assert!(!t.ui().capture.silent);
+        assert_eq!(action(&t.ui(), "silent.toggle", "").pressed, Some(false));
     }
 
     #[test]

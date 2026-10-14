@@ -21,3 +21,8 @@ The agent decided: build the tab recorder first, as a static page with no off-or
 > i approve crestion of a public git repo and deployment to pages
 
 The agent decided: the grant names no repository, so the agent named it `youtube-to-mp3`, after `pdf-redactor`'s pattern, as `sgilson7/youtube-to-mp3`, published at `https://sgilson7.github.io/youtube-to-mp3/`. Scope: until withdrawn, recorded in `BRIEF.md`'s Autonomy paragraph. The approval of `rusty_mp3` (`SECOND-ORDER.md` R1.3) was not answered separately; publishing ships it, so the agent reads the grant as accepting it for now and leaves the row open for the person to confirm.
+
+> add silent recording and video inside the page, and a little progress bar with a time left before its ready
+
+The agent decided (2026-10-14): the video plays in YouTube's `youtube-nocookie.com` embed, driven by the widget protocol over `postMessage`, with no YouTube script loaded into the page; the page shares its own tab (`preferCurrentTab`). It is a declared off-origin feature under R7, fenced by `player_fence.rs`, loaded only on the reader's press, and the brief's Autonomy paragraph now names it. Recording another tab stays for videos kept off other sites. "Record silently" is on at first. The progress bar is the share of the video played, and the time left is its remaining length, rounded up; there is none for another tab (`SECOND-ORDER.md` R3.1 to R3.7).
+

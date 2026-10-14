@@ -22,7 +22,7 @@ def run(page, check, engine):
     check(page.inner_text("#message") == "", "no error message is shown")
     steps = page.locator("#steps li")
     check(steps.count() == 4, "four steps are listed")
-    check(steps.nth(1).inner_text().startswith("Press Choose the tab. "), "a step names the button it means")
+    check(" press Record it here. " in steps.nth(0).inner_text(), "a step names the button it means")
 
     choose = page.get_by_role("button", name="Choose the tab")
     if engine.startswith("chromium"):
@@ -46,6 +46,12 @@ def run(page, check, engine):
     page.wait_for_selector("button[aria-pressed='false']:has-text('seconds of silence')")
     check(True, "stopping on silence can be turned off")
 
+    silent = page.get_by_role("button", name="Record silently")
+    check(silent.get_attribute("aria-pressed") == "true", "recording silently is on at first")
+    silent.click()
+    page.wait_for_selector("button[aria-pressed='false']:has-text('Record silently')")
+    check(True, "recording silently can be turned off")
+
     box = page.locator("#field-link\\.set")
     box.click()
     box.press_sequentially("https://youtu.be/aqz-KE-bpKQ?si=x")
@@ -55,6 +61,11 @@ def run(page, check, engine):
     check(link.get_attribute("target") == "_blank", "the video opens in a new tab")
     check(box.input_value() == "https://youtu.be/aqz-KE-bpKQ?si=x", "typing kept every character in the box")
     check(page.evaluate("document.activeElement.id") == "field-link.set", "the box kept the focus while the page redrew")
+    here = page.get_by_role("button", name="Record it here")
+    check(here.count() == 1, "a video's link offers recording it here")
+    # The player loads only on the reader's press (R7); this check never
+    # presses it, so the page stays on its origin. capture.py presses it.
+    check(page.locator("#player iframe").count() == 0, "the player is not loaded until the reader asks")
 
     box.fill("https://vimeo.com/1")
     page.wait_for_selector(f"#video p:has-text('{STRINGS['link_not_youtube'][:20]}')")

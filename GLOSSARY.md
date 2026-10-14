@@ -24,6 +24,12 @@ Not: quality setting, kbps rate
 
 The sound file the page makes, in the compressed audio format that music players on phones and computers open.
 
+### Record silently
+
+A setting that has the browser record the tab's sound without playing it through your speakers or headphones. It takes effect when sharing starts.
+
+Not: mute
+
 ### Silence
 
 Sound whose loudest sample stays about sixty decibels below full volume. Silence before the first sound and after the last is left out of the saved file; with stopping on silence turned on, {seconds} seconds of it ends the recording.

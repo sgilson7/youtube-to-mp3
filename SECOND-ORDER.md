@@ -30,6 +30,15 @@ One row per assumption, surprise or open item. **Kind** is *divergence* (what wa
 | R2.1 | divergence | Assumed Safari and Firefox might share a tab's sound in some versions, so the page let them try with a muted warning. The person, on a Mac with only Safari 26.3, met Safari's picker, which offers windows and screens and gives the page no sound. Recording now needs a Chromium-based browser (`navigator.userAgentData`); others see a notice straight after the intro and a disabled button. A Chromium browser without `userAgentData` would be refused wrongly; none is known. "window" is allowed in `browser_cannot` only, with the reason in `copy.rs`. (T1) *done* |
 | R2.3 | finding | The person reported, 2026-10-13: "it worked on opera". Opera desktop is Chromium-based and passes the page's browser test, so it gets the picker. First recording by a person on the published page. No automated check runs Opera. *done* |
 | R2.2 | worklist | Install Chrome or Edge on the Mac and try the page by hand (R1.14 still stands). *person* |
+| R3.1 | divergence | The brief ruled out any off-origin request. The person asked for the video inside the page on 2026-10-14, after being told it breaks that rule. Built as a declared off-origin feature under R7, after `kits/online`: the frame loads only when the reader presses "Record it here"; the CSP's `frame-src` is exactly the core's `player::ORIGIN`, and `player_fence.rs` fails on any widening (each of seven widenings seen failing); `connect-src` stays `'self'`. No third-party code runs in the page's origin. Inside the frame, YouTube's own scripts contact YouTube and Google as any embed does. *done* |
+| R3.2 | finding | The widget protocol (`listening`, `command`, `infoDelivery`, `onStateChange`, `onError`) is what YouTube's embed script uses, but YouTube documents the script, not the messages. Messages recorded from a real embed on 2026-10-14 are the fixtures in `player.rs`. `capture.py` tests the page against a stand-in that speaks the same messages, so a change on YouTube's side would show only when a person tries it. *open* |
+| R3.3 | finding | Real YouTube, 2026-10-14, Playwright Chromium with a window, `--auto-accept-this-tab-capture`: Big Buck Bunny started by itself once the tab was shared; the time left read 10:35 and counted down a second a second; the file took the video's title; 13 s recorded decoded by `afinfo` as 12.98 s at 192 kbps. The YouTube embed reports `author` as empty, so the artist is not filled. *done* |
+| R3.4 | divergence | For a video inside the page, stopping on silence is ignored: the player reports the end, and a quiet passage in the video would otherwise end the recording early. Silence after the last sound is still left out. *done* |
+| R3.5 | worklist | "Record silently" is on at first. Chrome reads `suppressLocalAudioPlayback` only when sharing starts, so the setting is chosen before. The checks show recording still works with it on; whether the reader hears nothing is a check by ear. Try it in Chrome or Opera, both ways. *person* |
+| R3.6 | finding | A break row for "the player shows only while recording" was not caught. The screen filter was redundant: `stop` and `back_to_setup` already drop the player. The filter was removed with its row, leaving 37 rows, all caught. *done* |
+| R3.7 | finding | The time left is known only for a video inside the page. A page cannot see the player in another tab, so recording another tab shows the level and the time recorded, as before. *done* |
+| R3.8 | worklist | Check the strings that describe Chrome's "share this tab" prompt (`steps[1]`, `asking_here_text`: "keep the switch to share its audio on, and allow it") against the prompt Chrome shows; automation answers that prompt with a switch, so no check has seen it. *person* |
+| R3.9 | finding | An advert in the embedded player plays in this tab and is recorded, as in another tab. How the player reports time during an advert was not seen. *open* |
 
 ## Strings written by the agent
 
@@ -88,3 +97,26 @@ Each reader-visible string the agent wrote, with its key, for the person to read
 | `no_sound` | No sound was heard, so there is no MP3 to make. Play the video while the page is waiting for sound. |
 | `ended_early` | Sharing ended before any sound was heard. Press {choose} to start again. |
 | `bad_rate` | The browser records at {rate} samples a second, which an MP3 cannot hold. Reload the page and try again. |
+
+### Round 3 (2026-10-14): new and changed
+
+| Key | String |
+| --- | --- |
+| `steps[0]` | Paste the video's link below and press {here}. The video plays on this page while it records. |
+| `steps[1]` | When the browser asks to share this tab, keep the switch to share its audio on, and allow it. |
+| `steps[2]` | Recording begins with the first sound and stops when the video ends. Then save the MP3. |
+| `steps[3]` | Some owners keep their videos off other sites. For those, open the video in a new tab, press {choose}, and click that tab in the browser's list. |
+| `here` | Record it here |
+| `silent_option` | Record silently |
+| `asking_here_heading` | Share this tab |
+| `asking_here_text` | The browser asks to share this tab. Keep the switch to share its audio on, and allow it. The video then starts by itself. |
+| `waiting_here_text` | The video is starting. If it does not play within a few seconds, press play on it. |
+| `progress_label` | Time left |
+| `progress_text` | {left} until the MP3 is ready |
+| `player_title` | YouTube video |
+| `recording_here` | Recording stops by itself when the video ends. |
+| `stopped_ended` | Recording stopped when the video ended. |
+| `player_blocked` | The video's owner does not let it play on other sites. Open it in a new tab and press {choose} instead. |
+| `player_failed` | The video could not play here (YouTube error {code}). Open it in a new tab and press {choose} instead. |
+| `no_audio`, `picker_cancelled`, `picker_failed`, `ended_early` | `{choose}` became `{start}`, the button that began this recording |
+| `GLOSSARY.md` "Record silently" | A setting that has the browser record the tab's sound without playing it through your speakers or headphones. It takes effect when sharing starts. |

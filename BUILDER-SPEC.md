@@ -64,6 +64,7 @@ These stay with the person and go in `BRIEF.md` or `PLAN.md`:
 | --- | --- | --- | --- |
 | D1 core allowlist | adds `rusty_mp3 = "=1.0.0"` | browsers have no MP3 encoder; pure Rust, no dependencies; awaiting the person's approval | `BRIEF.md`, `SECOND-ORDER.md` R1.3 |
 | D2 no floats in the core | unchanged in the core's own source; the encoder dependency uses `f32` inside | the core reads sample bit patterns with integers and hands bytes to the encoder | `BRIEF.md`, `pcm.rs` |
+| D4, page scan | each page's CSP adds `frame-src https://www.youtube-nocookie.com`; the page scan lets the CSP line hold that address | the person asked for the video inside the page (BRIEF.md, 2026-10-14); a declared off-origin feature under R7, loaded only on the reader's press | `crates/core/tests/player_fence.rs` (frame-src is exactly `player::ORIGIN`, no other directive names an address, `connect-src` stays `'self'`); `SECOND-ORDER.md` R3.1 |
 | D10 cache-busting stamps | also stamps `audioWorklet.addModule("...")` URLs, and fails on an unstamped one | the worklet is a script the page loads by URL | `SECOND-ORDER.md` R1.5 |
 | R4 template convention (state as JSON round trip) | the shim holds the core's `Handle`; the core keeps its state | a running encoder is not JSON; the requirement (ordinary values in and out, one `act` door) still holds | `SECOND-ORDER.md` R1.4 |
 | R8 check | adds step 8, `tests/browser/capture.py`, recording a real tab in Chromium | the tool's main path cannot be reached by the template's browser check | `SECOND-ORDER.md` R1.18 |

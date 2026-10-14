@@ -145,5 +145,117 @@
     "find": "self.abilities.display && self.abilities.worklet && self.abilities.chromium",
     "replace": "self.abilities.display && self.abilities.worklet",
     "test": "a_browser_that_cannot_share_a_tab_is_told_so_and_cannot_start"
+  },
+  {
+    "name": "a message from another origin is read",
+    "file": "crates/core/src/player.rs",
+    "find": "    if origin != ORIGIN {\n        return None;\n    }",
+    "replace": "",
+    "test": "a_message_from_another_origin_or_not_the_player_s_is_ignored"
+  },
+  {
+    "name": "the fraction of a second is read",
+    "file": "crates/core/src/player.rs",
+    "find": "ms = ms * 10 + digit;",
+    "replace": "ms = ms * 10;",
+    "test": "decimal_seconds_become_whole_milliseconds"
+  },
+  {
+    "name": "the page's origin is encoded in the embed address",
+    "file": "crates/core/src/player.rs",
+    "find": "encode(page_origin))",
+    "replace": "page_origin)",
+    "test": "the_embed_address_names_the_video_and_the_page"
+  },
+  {
+    "name": "a report without a length keeps the last one",
+    "file": "crates/core/src/player.rs",
+    "find": "        if let Some(l) = report.length_ms {\n            self.length_ms = l;\n        }",
+    "replace": "        self.length_ms = report.length_ms.unwrap_or(0);",
+    "test": "reports_add_up_and_give_the_time_left"
+  },
+  {
+    "name": "play waits for the tab to be shared",
+    "file": "crates/core/src/api.rs",
+    "find": "if ready && self.screen == Screen::Waiting && !self.play_sent {",
+    "replace": "if ready && !self.play_sent {",
+    "test": "the_player_is_asked_to_report_then_to_play_once_both_are_ready"
+  },
+  {
+    "name": "play is sent once",
+    "file": "crates/core/src/api.rs",
+    "find": "if ready && self.screen == Screen::Waiting && !self.play_sent {",
+    "replace": "if ready && self.screen == Screen::Waiting {",
+    "test": "the_player_is_asked_to_report_then_to_play_once_both_are_ready"
+  },
+  {
+    "name": "the video's end stops the recording",
+    "file": "crates/core/src/api.rs",
+    "find": "if report.state == Some(player::ENDED) && matches!",
+    "replace": "if report.state == Some(99) && matches!",
+    "test": "the_video_s_end_stops_the_recording_and_names_the_file"
+  },
+  {
+    "name": "the video's title names the file",
+    "file": "crates/core/src/api.rs",
+    "find": "            if self.title.is_empty() {\n                self.title = p.title;\n            }",
+    "replace": "",
+    "test": "the_video_s_end_stops_the_recording_and_names_the_file"
+  },
+  {
+    "name": "silence inside a video here does not stop it",
+    "file": "crates/core/src/api.rs",
+    "find": "let on_silence = self.stop_on_silence && !self.here;",
+    "replace": "let on_silence = self.stop_on_silence;",
+    "test": "silence_inside_a_video_here_does_not_stop_the_recording"
+  },
+  {
+    "name": "a blocked video names the way round",
+    "file": "crates/core/src/api.rs",
+    "find": "let template = if player::not_embeddable(code) {",
+    "replace": "let template = if false {",
+    "test": "a_video_kept_off_other_sites_goes_back_with_the_way_round"
+  },
+  {
+    "name": "a message with no player showing is ignored",
+    "file": "crates/core/src/api.rs",
+    "find": "        if self.player_view().is_none() {\n            return Ok(());\n        }\n        let Some(report)",
+    "replace": "        let Some(report)",
+    "test": "a_message_from_elsewhere_changes_nothing"
+  },
+  {
+    "name": "the time left is rounded up",
+    "file": "crates/core/src/api.rs",
+    "find": "format::clock(left.div_ceil(1000), 1)",
+    "replace": "format::clock(left / 1000, 1)",
+    "test": "the_time_left_comes_from_the_player"
+  },
+  {
+    "name": "recording silently reaches the capture",
+    "file": "crates/core/src/api.rs",
+    "find": "                silent: self.silent,\n",
+    "replace": "                silent: true,\n",
+    "test": "recording_silently_is_on_at_first_and_can_be_turned_off"
+  },
+  {
+    "name": "a cancelled share names the button that started it",
+    "file": "crates/core/src/api.rs",
+    "find": "        let start = if self.here {\n            &self.strings.here\n        } else {",
+    "replace": "        let start = if false {\n            &self.strings.here\n        } else {",
+    "test": "a_cancelled_share_names_the_button_that_started_it"
+  },
+  {
+    "name": "only the tab picker leads without a link",
+    "file": "crates/core/src/api.rs",
+    "find": "                primary: !linked,",
+    "replace": "                primary: true,",
+    "test": "a_link_offers_recording_here_first"
+  },
+  {
+    "name": "the fence requires the player's origin exactly",
+    "file": "crates/core/tests/player_fence.rs",
+    "find": "Some((_, sources)) if sources == &[player::ORIGIN.to_string()] => {}",
+    "replace": "Some(_) => {}",
+    "test": "the_fence_catches_each_kind_of_widening"
   }
 ]
