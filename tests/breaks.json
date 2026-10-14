@@ -138,5 +138,12 @@
     "find": "serde_json::Value::String(s) => s.trim().is_empty(),",
     "replace": "serde_json::Value::String(_) => false,",
     "test": "an_empty_string_is_rejected_by_name"
+  },
+  {
+    "name": "only Chrome and Edge may open the picker",
+    "file": "crates/core/src/api.rs",
+    "find": "self.abilities.display && self.abilities.worklet && self.abilities.chromium",
+    "replace": "self.abilities.display && self.abilities.worklet",
+    "test": "a_browser_that_cannot_share_a_tab_is_told_so_and_cannot_start"
   }
 ]

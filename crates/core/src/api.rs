@@ -278,25 +278,34 @@ impl Tool {
         )
     }
 
+    /// Only a Chromium-based browser (Chrome, Edge) gives a page the sound
+    /// of a shared tab. Safari's picker shares windows and screens with no
+    /// sound, and Firefox shares no tab sound either (SECOND-ORDER.md R2.1).
     fn can_share(&self) -> bool {
-        self.abilities.display && self.abilities.worklet
+        self.abilities.display && self.abilities.worklet && self.abilities.chromium
     }
 
     fn setup_panels(&self) -> Vec<Panel> {
         let s = &self.strings;
-        let mut panels = vec![
-            Panel {
-                id: "intro".into(),
-                lines: vec![line(s.intro.clone())],
+        let mut panels = vec![Panel {
+            id: "intro".into(),
+            lines: vec![line(s.intro.clone())],
+            ..Panel::default()
+        }];
+        if !self.can_share() {
+            panels.push(Panel {
+                id: "browser".into(),
+                heading: s.browser_heading.clone(),
+                lines: vec![line(s.browser_cannot.clone())],
                 ..Panel::default()
-            },
-            Panel {
-                id: "steps".into(),
-                heading: s.steps_heading.clone(),
-                steps: s.steps.iter().map(|t| self.say(t)).collect(),
-                ..Panel::default()
-            },
-        ];
+            });
+        }
+        panels.extend([Panel {
+            id: "steps".into(),
+            heading: s.steps_heading.clone(),
+            steps: s.steps.iter().map(|t| self.say(t)).collect(),
+            ..Panel::default()
+        }]);
 
         let mut video = Panel {
             id: "video".into(),
@@ -358,11 +367,6 @@ impl Tool {
             }],
             ..Panel::default()
         };
-        if !self.can_share() {
-            start.lines.push(line(s.browser_cannot.clone()));
-        } else if !self.abilities.chromium {
-            start.lines.push(line(s.browser_maybe.clone()));
-        }
         start.lines.push(line(s.rights.clone()));
         panels.push(start);
         panels
@@ -938,7 +942,7 @@ mod tests {
     fn the_steps_name_the_buttons_they_mean() {
         let ui = tool().ui();
         let steps = &panel(&ui, "steps").steps;
-        assert!(steps[1].starts_with("Press Choose the tab,"), "{}", steps[1]);
+        assert!(steps[1].starts_with("Press Choose the tab. "), "{}", steps[1]);
         assert!(
             steps[3].starts_with("Press Stop and make the MP3 "),
             "{}",
@@ -993,37 +997,32 @@ mod tests {
 
     #[test]
     fn a_browser_that_cannot_share_a_tab_is_told_so_and_cannot_start() {
-        let mut t = Tool::start(
-            STRINGS,
-            GLOSSARY,
-            r#"{"display": false, "worklet": true, "chromium": false}"#,
-        )
-        .unwrap();
-        let ui = t.ui();
-        assert!(!action(&ui, "capture.choose", "").enabled);
-        assert!(panel(&ui, "start")
-            .lines
-            .iter()
-            .any(|l| l.text == strings().browser_cannot));
-        assert_eq!(t.act("capture.choose", ""), Err(strings().browser_cannot));
-        assert_eq!(t.ui().screen, "setup");
+        for abilities in [
+            r#"{"display": false, "worklet": true, "chromium": true}"#,
+            r#"{"display": true, "worklet": false, "chromium": true}"#,
+            // Safari and Firefox offer both, and still share no tab sound.
+            r#"{"display": true, "worklet": true, "chromium": false}"#,
+        ] {
+            let mut t = Tool::start(STRINGS, GLOSSARY, abilities).unwrap();
+            let ui = t.ui();
+            assert!(!action(&ui, "capture.choose", "").enabled, "{abilities}");
+            let browser = panel(&ui, "browser");
+            assert_eq!(browser.heading, strings().browser_heading);
+            assert_eq!(browser.lines[0].text, strings().browser_cannot);
+            assert_eq!(
+                ui.panels[1].id, "browser",
+                "the notice comes straight after the intro"
+            );
+            assert_eq!(t.act("capture.choose", ""), Err(strings().browser_cannot));
+            assert_eq!(t.ui().screen, "setup");
+        }
     }
 
     #[test]
-    fn a_browser_other_than_chrome_or_edge_is_warned_and_may_still_try() {
-        let mut t = Tool::start(
-            STRINGS,
-            GLOSSARY,
-            r#"{"display": true, "worklet": true, "chromium": false}"#,
-        )
-        .unwrap();
-        let ui = t.ui();
-        assert!(action(&ui, "capture.choose", "").enabled);
-        assert!(panel(&ui, "start")
-            .lines
-            .iter()
-            .any(|l| l.text == strings().browser_maybe));
-        assert!(!texts(&tool().ui()).contains(&strings().browser_maybe));
+    fn chrome_and_edge_get_no_browser_notice() {
+        let ui = tool().ui();
+        assert!(ui.panels.iter().all(|p| p.id != "browser"));
+        assert!(!texts(&ui).contains(&strings().browser_cannot));
     }
 
     #[test]

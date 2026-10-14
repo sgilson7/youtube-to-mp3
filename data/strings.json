@@ -4,7 +4,7 @@
   "steps_heading": "How it works",
   "steps": [
     "Open the video in another tab, or paste its link below and open it from here.",
-    "Press {choose}, pick the video's tab, and turn on the switch to share the tab's audio.",
+    "Press {choose}. The browser opens a list of your tabs: click the video's tab in that list, not in the tab bar, turn on the switch to share its audio, and press Share.",
     "Play the video. Recording begins with the first sound, so the silence before it is left out.",
     "Press {stop} when the video ends, or let the recording stop by itself, then save the MP3."
   ],
@@ -18,10 +18,10 @@
   "silence_option": "Stop after {seconds} seconds of silence",
   "choose": "Choose the tab",
   "rights": "Record only what you have the right to keep, such as your own videos or ones licensed for reuse.",
-  "browser_cannot": "This browser cannot share a tab. Use Chrome or Edge on a computer.",
-  "browser_maybe": "This browser may share a tab's picture without its sound. Chrome and Edge on a computer share both.",
+  "browser_heading": "Open this page in Chrome or Edge",
+  "browser_cannot": "This browser cannot give a page the sound of another tab, so it cannot record here. Safari shares whole windows with no sound, and Firefox shares no tab sound. Chrome and Edge on a computer can, and both are free.",
   "asking_heading": "Choose the tab",
-  "asking_text": "In the list the browser shows, pick the tab with the video and turn on the switch to share its audio.",
+  "asking_text": "The browser shows a list of your tabs. Click the video's tab in that list, not in the tab bar at the top, turn on the switch to share its audio, and press Share.",
   "waiting_heading": "Waiting for sound",
   "waiting_text": "Play the video now. Recording begins with the first sound.",
   "cancel": "Stop sharing",

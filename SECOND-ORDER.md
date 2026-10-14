@@ -27,6 +27,8 @@ One row per assumption, surprise or open item. **Kind** is *divergence* (what wa
 | R1.19 | worklist | YouTube's terms forbid downloading outside YouTube's own features. The person said they do not mind; the page asks readers to record only what they have the right to keep (`rights`). Whether that wording is enough for a public release is the person's call. *person* |
 | R1.20 | worklist | Every string below was written by the agent. Read them, in particular `intro`, `rights` and `adverts`. *person* |
 | R1.21 | worklist | The template has no licence file. The person asked for an open-source tool, so `LICENSE` is a copy of the PDF redactor's MIT licence (Copyright 2026 Sam Gilson). Change it if another licence is wanted. *person* |
+| R2.1 | divergence | Assumed Safari and Firefox might share a tab's sound in some versions, so the page let them try with a muted warning. The person, on a Mac with only Safari 26.3, met Safari's picker, which offers windows and screens and gives the page no sound. Recording now needs a Chromium-based browser (`navigator.userAgentData`); others see a notice straight after the intro and a disabled button. A Chromium browser without `userAgentData` would be refused wrongly; none is known. "window" is allowed in `browser_cannot` only, with the reason in `copy.rs`. (T1) *done* |
+| R2.2 | worklist | Install Chrome or Edge on the Mac and try the page by hand (R1.14 still stands). *person* |
 
 ## Strings written by the agent
 

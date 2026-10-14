@@ -22,14 +22,17 @@ def run(page, check, engine):
     check(page.inner_text("#message") == "", "no error message is shown")
     steps = page.locator("#steps li")
     check(steps.count() == 4, "four steps are listed")
-    check(steps.nth(1).inner_text().startswith("Press Choose the tab,"), "a step names the button it means")
+    check(steps.nth(1).inner_text().startswith("Press Choose the tab. "), "a step names the button it means")
 
     choose = page.get_by_role("button", name="Choose the tab")
-    check(choose.is_enabled(), "the tab picker can be opened")
     if engine.startswith("chromium"):
-        check(STRINGS["browser_maybe"] not in page.inner_text("#start"), "Chromium is not warned about sound")
+        check(choose.is_enabled(), "Chromium can open the tab picker")
+        check(page.locator("#browser").count() == 0, "Chromium gets no browser notice")
     else:
-        check(STRINGS["browser_maybe"] in page.inner_text("#start"), f"{engine} is warned it may share no sound")
+        # Safari and Firefox share no tab sound (SECOND-ORDER.md R2.1).
+        check(choose.is_disabled(), f"{engine} cannot open the tab picker")
+        check(page.inner_text("#browser h2") == "Open this page in Chrome or Edge", f"{engine} is told to use Chrome or Edge")
+        check(page.locator("#panels > section").nth(1).get_attribute("id") == "browser", "the notice comes straight after the intro")
 
     check(page.get_attribute("[aria-pressed='true'][type=button]:has-text('192 kbps')", "aria-pressed") == "true",
           "192 kbps is chosen at first")
