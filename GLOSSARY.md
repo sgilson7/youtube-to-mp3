@@ -13,3 +13,31 @@ Where slush comes out. Each line has up to {line.spouts} spouts.
 
 Not: tap, dispenser, nozzle
 -->
+
+### Bitrate
+
+How many kilobits of the saved file hold each second of sound. The page offers {bitrates} kbps and starts at {default}. A higher bitrate keeps more detail and makes a larger file.
+
+Not: quality setting, kbps rate
+
+### MP3
+
+The sound file the page makes, in the compressed audio format that music players on phones and computers open.
+
+### Silence
+
+Sound whose loudest sample stays about sixty decibels below full volume. Silence before the first sound and after the last is left out of the saved file; with stopping on silence turned on, {seconds} seconds of it ends the recording.
+
+Not: quiet part, gap
+
+### Tab
+
+A browser tab. The page records the sound of the one tab the reader shares with it, and hears nothing from other tabs or programs.
+
+Not: window, screen
+
+### Tags
+
+The title and artist stored inside the saved file, which music players show in place of the file name.
+
+Not: metadata, labels

@@ -1,16 +1,142 @@
 [
   {
-    "name": "an empty title is refused",
-    "file": "crates/core/src/page.rs",
-    "find": "if strings.title.trim().is_empty() {",
+    "name": "silence before the first sound is dropped",
+    "file": "crates/core/src/recorder.rs",
+    "find": "            if silent {\n                return Fed::Waiting;",
+    "replace": "            if false {\n                return Fed::Waiting;",
+    "test": "silence_before_the_first_sound_is_left_out"
+  },
+  {
+    "name": "silence at the end is left out of the file",
+    "file": "crates/core/src/recorder.rs",
+    "find": "        self.encoder.finish();",
+    "replace": "        let held = std::mem::take(&mut self.held);\n        self.encode(&held);\n        self.encoder.finish();",
+    "test": "silence_at_the_end_is_left_out_of_the_file"
+  },
+  {
+    "name": "enough silence stops the recording",
+    "file": "crates/core/src/recorder.rs",
+    "find": "self.held_frames >= u64::from(SILENCE_SECONDS)",
+    "replace": "self.held_frames > u64::from(SILENCE_SECONDS)",
+    "test": "enough_silence_after_sound_stops_the_recording"
+  },
+  {
+    "name": "stopping on silence can be off",
+    "file": "crates/core/src/recorder.rs",
+    "find": "if self.stop_on_silence && self.held_frames",
+    "replace": "if self.held_frames",
+    "test": "silence_does_not_stop_the_recording_when_that_is_off"
+  },
+  {
+    "name": "a recording stops at the limit",
+    "file": "crates/core/src/recorder.rs",
+    "find": "if self.heard_frames() >= self.limit_frames {",
     "replace": "if false {",
-    "test": "an_empty_title_is_rejected_by_name"
+    "test": "the_recording_stops_at_the_limit"
+  },
+  {
+    "name": "a sample louder than full scale reads as full scale",
+    "file": "crates/core/src/pcm.rs",
+    "find": "(significand >> shift).min(FULL_SCALE)",
+    "replace": "significand >> shift",
+    "test": "magnitude_caps_loud_samples_at_full_scale"
+  },
+  {
+    "name": "channels interleave left first",
+    "file": "crates/core/src/pcm.rs",
+    "find": "out.extend_from_slice(&bits_at(left, at).to_le_bytes());",
+    "replace": "out.extend_from_slice(&bits_at(right, at).to_le_bytes());",
+    "test": "interleave_alternates_channels"
+  },
+  {
+    "name": "the tag size is seven bits a byte",
+    "file": "crates/core/src/id3.rs",
+    "find": "((n >> 7) & 0x7f) as u8,",
+    "replace": "((n >> 8) & 0x7f) as u8,",
+    "test": "a_large_size_is_split_into_seven_bit_bytes"
+  },
+  {
+    "name": "latin text is written in one byte a letter",
+    "file": "crates/core/src/id3.rs",
+    "find": "(c as u32) < 0x100",
+    "replace": "(c as u32) < 0x80",
+    "test": "latin_text_stays_in_one_byte_a_letter"
+  },
+  {
+    "name": "another site's address is refused",
+    "file": "crates/core/src/link.rs",
+    "find": "if !HOSTS.contains(&host.as_str()) {",
+    "replace": "if host.is_empty() {",
+    "test": "an_address_on_another_site_is_refused"
+  },
+  {
+    "name": "file names drop what file systems refuse",
+    "file": "crates/core/src/format.rs",
+    "find": "!c.is_control() && !NOT_IN_NAMES.contains(c)",
+    "replace": "!c.is_control()",
+    "test": "file_name_drops_what_file_systems_refuse"
+  },
+  {
+    "name": "the clock wraps minutes into hours",
+    "file": "crates/core/src/format.rs",
+    "find": "seconds / 60 % 60",
+    "replace": "seconds / 60",
+    "test": "clock_counts_whole_seconds_of_samples"
+  },
+  {
+    "name": "sizes round to the nearest tenth",
+    "file": "crates/core/src/format.rs",
+    "find": "(bytes + 50_000) / 100_000",
+    "replace": "bytes / 100_000",
+    "test": "size_uses_kilobytes_then_megabytes_to_a_tenth"
   },
   {
     "name": "an unknown action is refused",
     "file": "crates/core/src/api.rs",
-    "find": "other => return Err(format!(\"Unknown action \\\"{other}\\\".\")),",
-    "replace": "_ => {}",
-    "test": "act_refuses_an_unknown_action"
+    "find": "            other => return Err(format!(\"Unknown action \\\"{other}\\\".\")),",
+    "replace": "            _ => {}",
+    "test": "an_unknown_action_and_one_the_screen_does_not_offer_are_refused"
+  },
+  {
+    "name": "an action the screen does not offer is refused",
+    "file": "crates/core/src/api.rs",
+    "find": "if allowed.contains(&screen) {",
+    "replace": "if true {",
+    "test": "an_unknown_action_and_one_the_screen_does_not_offer_are_refused"
+  },
+  {
+    "name": "a bitrate not offered is refused",
+    "file": "crates/core/src/api.rs",
+    "find": "if !recorder::BITRATES.contains(&kbps) {",
+    "replace": "if false {",
+    "test": "the_bitrate_can_be_one_of_those_offered_and_no_other"
+  },
+  {
+    "name": "a tab shared without sound goes back",
+    "file": "crates/core/src/api.rs",
+    "find": "if shared.tracks == 0 {",
+    "replace": "if false {",
+    "test": "a_tab_shared_without_sound_goes_back_with_the_reason"
+  },
+  {
+    "name": "the first sound asks the page to redraw",
+    "file": "crates/core/src/api.rs",
+    "find": "Fed::Recording if self.screen == Screen::Waiting => {",
+    "replace": "Fed::Recording if false => {",
+    "test": "sharing_waits_for_sound_then_records"
+  },
+  {
+    "name": "effects belong to the action that asked",
+    "file": "crates/core/src/api.rs",
+    "find": "        self.effects.clear();\n",
+    "replace": "",
+    "test": "saving_asks_the_page_to_save_once"
+  },
+  {
+    "name": "an empty string is refused",
+    "file": "crates/core/src/page.rs",
+    "find": "serde_json::Value::String(s) => s.trim().is_empty(),",
+    "replace": "serde_json::Value::String(_) => false,",
+    "test": "an_empty_string_is_rejected_by_name"
   }
 ]

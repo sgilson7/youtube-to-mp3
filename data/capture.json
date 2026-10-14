@@ -1,0 +1,27 @@
+{
+  "_note": "Options the page passes to the browser unchanged. display: getDisplayMedia; context: AudioContext; worklet: AudioWorkletNode. A 48000 rate matches YouTube's Opus streams and is one an MP3 holds.",
+  "display": {
+    "video": { "displaySurface": "browser" },
+    "audio": {
+      "echoCancellation": false,
+      "noiseSuppression": false,
+      "autoGainControl": false,
+      "suppressLocalAudioPlayback": false
+    },
+    "preferCurrentTab": false,
+    "selfBrowserSurface": "exclude",
+    "surfaceSwitching": "include",
+    "systemAudio": "exclude",
+    "monitorTypeSurfaces": "exclude"
+  },
+  "context": { "sampleRate": 48000, "latencyHint": "playback" },
+  "worklet": {
+    "numberOfInputs": 1,
+    "numberOfOutputs": 1,
+    "channelCount": 2,
+    "channelCountMode": "explicit",
+    "channelInterpretation": "speakers"
+  },
+  "paint_ms": 50,
+  "revoke_ms": 60000
+}

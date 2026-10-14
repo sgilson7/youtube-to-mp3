@@ -10,3 +10,5 @@ publish = false
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The MP3 encoder. Pinned exactly; the reason is in BRIEF.md.
+rusty_mp3 = "=1.0.0"

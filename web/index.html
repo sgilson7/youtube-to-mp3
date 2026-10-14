@@ -8,16 +8,18 @@
        form-action 'none' blocks form posts. A meta policy cannot stop data
        leaving by navigation, so the browser check still watches requests. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Builder tool</title>
+  <title>YouTube to MP3</title>
+  <!-- No icon file: an empty one stops the browser asking for /favicon.ico. -->
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-ready="false">
   <main>
     <h1 id="title"></h1>
     <div id="panels"></div>
-    <p id="message" role="status"></p>
+    <p id="message" role="status" aria-live="polite"></p>
   </main>
-  <noscript><p>This page needs JavaScript and WebAssembly.</p></noscript>
+  <noscript><p>This page needs JavaScript and WebAssembly to record and encode sound.</p></noscript>
   <script type="module" src="app.js"></script>
 </body>
 </html>

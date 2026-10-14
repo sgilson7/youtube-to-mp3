@@ -4,44 +4,64 @@ Stage 1. The person's own words come first; the rest can be written by the agent
 
 ## The description, word for word
 
-Paste the description of the tool here unchanged: what you want, in your own words, as long or short as you like. A paraphrase is already an interpretation. Leave out names of people and employers if the repository will be public. Later requests in plain prose are numbered in `TRIAGE.md`.
+> Use sgilson7.github.io builder setting, which can be found one directory up. Use the shared technical setting within to create the following tool for me: a youtube to mp3 converter that works like the pdf redactor, with no terrible ads or anything like using other open source youtube to mp3 converters
 
-> 
+Asked whether the tool should be a page, a local app or both:
+
+> browser page, link in, mp3 out, i dont care about youtube changes and their terms, i just actively want a version of an open source youtube to mp3 converter and release it online so other people dont have to use the terrible ad filled virus filled versions that steal all the data online
+
+Told that a static page cannot read YouTube's streams, and asked about a way round it:
+
+> wait so why cant the browser read youtubes stream directly? lets get a little creative and try and figure that out. can the host create a faux server all in the browser cache and use that to pull the youtube stream?
+
+Offered a page that records a tab's sound, or a local app that takes a link:
+
+> lets try the creative route fist
 
 ## The tool
 
-What it does, who uses it, and on what device.
+A static web page that turns the sound of a YouTube video into an MP3 file, built and kept entirely inside the reader's browser tab, like the PDF redactor. The reader opens the page, chooses the browser tab playing the video, shares that tab's sound, plays the video, and stops. The page encodes what it heard as an MP3 and offers it as a file to save. There is no server, no upload, no account, no advert and no request off the page's own origin.
+
+The page records rather than downloads, because a page on another origin cannot read YouTube's streams (`SECOND-ORDER.md` R1.1). Recording takes as long as the video plays, and it works where the browser can share a tab's sound: Chrome and Edge on a desktop computer.
+
+For anyone with a desktop browser; aimed at people who would otherwise use an advert-funded converter site.
 
 ## Done means
 
-The conditions the person will check before deploying. Make each one checkable.
-
-- 
+- In Chrome on macOS, sharing a tab that plays a test tone for a few seconds gives an MP3 that macOS decodes, at the chosen bitrate, with the tone's pitch.
+- Silence before the sound starts and after it stops is left out of the file.
+- With "stop when the sound stops" on, recording ends by itself once the tab has been silent for the stated time after sound was heard.
+- The title and artist typed in are written into the file's tags, and the file is named from the title.
+- Sharing without the tab's sound gives a message that says to tick the box for the tab's sound, not an empty file.
+- A browser that cannot share a tab's sound is told which browsers can.
+- The browser check passes in Chromium, Firefox and WebKit with no off-origin request.
+- `./scripts/check.sh` passes.
 
 ## Decisions that stay with the person
 
-Content, data, anything pedagogical or specific to the person's field, any third-party asset or likeness, and anything outside `BUILDER-SPEC.md`.
-
-- 
+- Every reader-visible string (listed at the foot of `SECOND-ORDER.md`).
+- The note on the page about what readers may record.
+- Whether and where the tool is published (see Autonomy).
+- Whether to build the local app with a link box later as a second tool (`DECISIONS.md`, 2026-10-13).
 
 ## Accessibility
 
-How the tool carries information besides colour (shape, pattern, brightness, text), and the input devices it must work with.
+Every state is text: the screen's heading names it, elapsed time is written as minutes and seconds, the sound level has a text reading beside the bar, and errors are sentences in a live region. Every control is a native button, input or link, so it works with a keyboard and a screen reader.
 
 ## Style
 
-`default`, or a path to a style pack, or a description of the look. With `default` or nothing, the art pipeline uses `styles/default/`.
+`default`.
 
 ## Words
 
-Terms the person already uses in their field, with what they mean. They go into `GLOSSARY.md` before any string uses them.
+YouTube, MP3, tab, bitrate. Entries in `GLOSSARY.md`.
 
 ## Autonomy
 
-One paragraph: what the agent may do alone, what it must ask about, and what it may never do. State whether the plan is approved in advance and whether the agent may publish.
-
-A paragraph that has worked for one-day builds: *The plan is approved in advance. Where this brief is silent, the agent decides, records the decision in `SECOND-ORDER.md`, and continues. The agent may not loosen a Builder requirement or a boundary test, and may not add a server, an account, analytics or any off-origin request. The agent may create a public repository named ____ and publish it with `./scripts/publish.sh` once `./scripts/check.sh` passes.*
+The plan is approved in advance. Where this brief is silent, the agent decides, records the decision in `SECOND-ORDER.md`, and continues. The agent may not loosen a Builder requirement or a boundary test, and may not add a server, an account, analytics or any off-origin request. The person asked for the tool to be released online but has not yet named a repository or address, so the agent does not create a repository or publish; it asks at handoff.
 
 ## Allowed core dependencies
 
-`serde`, `serde_json` (reference default). Add others only here, with the reason.
+`serde`, `serde_json` (reference default), and:
+
+- `rusty_mp3 = "=1.0.0"`: the MP3 encoder. Pure Rust, Apache-2.0, no dependencies of its own, no C. Browsers have no MP3 encoder (their built-in recorder writes Opus or AAC), and writing a Layer III encoder inside this project would take far longer than the tool. Pinned exactly because the crate was nine days old when adopted. It uses `f32` inside, which D2 bans in the core's own source but not in a dependency; the core passes it bytes and never names a float type. Its notes say its 320 kbps output is garbled, so the tool offers 128, 192 and 256 kbps only. It reads tuning variables from the process environment, which on `wasm32-unknown-unknown` always reads as unset. Recorded in `BUILDER-SPEC.md`'s change table.
