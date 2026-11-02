@@ -1,0 +1,43 @@
+{
+  "_note": "Options the page passes to the browser unchanged. display.tab: getDisplayMedia for another tab; display.here: for this tab, with the video inside it; audio: the audio constraints for both, to which the page adds suppressLocalAudioPlayback from the core's silent setting. context: AudioContext; worklet: AudioWorkletNode. A 48000 rate matches YouTube's Opus streams and is one an MP3 holds.",
+  "display": {
+    "tab": {
+      "video": {
+        "displaySurface": "browser"
+      },
+      "preferCurrentTab": false,
+      "selfBrowserSurface": "exclude",
+      "surfaceSwitching": "include",
+      "systemAudio": "exclude",
+      "monitorTypeSurfaces": "exclude"
+    },
+    "here": {
+      "video": {
+        "displaySurface": "browser"
+      },
+      "preferCurrentTab": true,
+      "selfBrowserSurface": "include",
+      "surfaceSwitching": "exclude",
+      "systemAudio": "exclude",
+      "monitorTypeSurfaces": "exclude"
+    }
+  },
+  "audio": {
+    "echoCancellation": false,
+    "noiseSuppression": false,
+    "autoGainControl": false
+  },
+  "context": {
+    "sampleRate": 48000,
+    "latencyHint": "playback"
+  },
+  "worklet": {
+    "numberOfInputs": 1,
+    "numberOfOutputs": 1,
+    "channelCount": 2,
+    "channelCountMode": "explicit",
+    "channelInterpretation": "speakers"
+  },
+  "paint_ms": 50,
+  "revoke_ms": 60000
+}
